@@ -1,99 +1,39 @@
-name: 🚀 Reliable Torrent Download and Push All Files to Repo
+name: Random Scan and Commit
 
 on:
   workflow_dispatch:
-    inputs:
-      torrent_url:
-        description: 'ダウンロードする .torrent の URL'
-        required: true
-        default: 'https://nyaa.si/download/655498.torrent'
 
 jobs:
-  download-and-push:
+  scan:
     runs-on: ubuntu-latest
 
     steps:
-      - name: ✅ Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v3
         with:
           persist-credentials: true
-          fetch-depth: 0
 
-      - name: ⚙️ Install Dependencies
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq aria2 curl
+          python -m pip install --upgrade pip
+          pip install requests
 
-      - name: 🗑️ Clean up old DHT cache
+      - name: Run scan script
+        run: python generate_hits.py
+
+      - name: Commit and push changes
         run: |
-          DHT_DIR=/home/runner/.cache/aria2
-          mkdir -p "$DHT_DIR"
-          rm -f "$DHT_DIR/dht.dat"
-
-      - name: 🔗 Download .torrent file
-        run: |
-          curl -sL "${{ github.event.inputs.torrent_url }}" -o download.torrent
-
-      - name: 📥 Download via aria2c (max speed with fresh DHT)
-        run: |
-          mkdir -p content
-          aria2c \
-            --file-allocation=none \
-            --dir=content \
-            --seed-time=0 \
-            --enable-dht=true \
-            --dht-file-path=/home/runner/.cache/aria2/dht.dat \
-            --bt-enable-lpd=true \
-            --bt-tracker="\
-            --split=16 \
-            --max-connection-per-server=16 \
-            --max-concurrent-downloads=16 \
-            --min-split-size=1M \
-            --continue=true \
-            --timeout=60 \
-            --retry-wait=5 \
-            --summary-interval=1 \
-            download.torrent || \
-          (echo "⚠️ DHT failing, retry without DHT" && \
-           aria2c \
-             --file-allocation=none \
-             --dir=content \
-             --seed-time=0 \
-             --enable-dht=false \
-             --bt-tracker="\
-udp://tracker.openbittorrent.com:80,\
-udp://tracker.opentrackr.org:1337,\
-udp://tracker.leechers-paradise.org:6969" \
-             --split=16 \
-             --max-connection-per-server=16 \
-             --max-concurrent-downloads=16 \
-             --min-split-size=1M \
-             --continue=true \
-             --timeout=60 \
-             --retry-wait=5 \
-             --summary-interval=1 \
-             download.torrent)
-
-      - name: 🧠 Prepare Git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: 📤 Push each folder as a separate branch
-        run: |
-          for dir in content/*; do
-            [ -d "$dir" ] || continue
-            folder_name=$(basename "$dir")
-            branch_name="content-${folder_name}"
-            echo "🌿 Creating branch: $branch_name"
-
-            git checkout -b "$branch_name"
-            mkdir -p "$folder_name"
-            cp -r "$dir"/* "$folder_name"/
-
-            git add "$folder_name"
-            git commit -m "Add $folder_name contents from torrent"
-            git push origin "$branch_name"
-            git checkout main
-            rm -rf "$folder_name"
-          done
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add hits.txt
+            git commit -m "Update hits.txt"
+            git push
+          else
+            echo "No changes to commit"
+          fi
