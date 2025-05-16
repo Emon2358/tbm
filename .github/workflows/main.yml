@@ -22,24 +22,31 @@ jobs:
       - name: ⚙️ Install Dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq aria2
+          sudo apt-get install -y -qq aria2 curl
+
+      - name: 🔗 Download .torrent file
+        run: |
+          curl -sL "${{ github.event.inputs.torrent_url }}" -o download.torrent
 
       - name: 📥 Download via aria2c (max speed)
         run: |
           mkdir -p content
           aria2c \
+            --file-allocation=none \
             --dir=content \
             --seed-time=0 \
             --enable-dht=true \
             --bt-enable-lpd=true \
-            --bt-tracker='udp://tracker.openbittorrent.com:80,udp://tracker.opentrackr.org:1337' \
+            --bt-tracker="udp://tracker.openbittorrent.com:80,udp://tracker.opentrackr.org:1337,udp://tracker.leechers-paradise.org:6969" \
             --split=16 \
             --max-connection-per-server=16 \
             --max-concurrent-downloads=16 \
             --min-split-size=1M \
             --continue=true \
+            --timeout=60 \
+            --retry-wait=5 \
             --summary-interval=1 \
-            "${{ github.event.inputs.torrent_url }}"
+            download.torrent
 
       - name: 🧠 Prepare Git
         run: |
