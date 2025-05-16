@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 # Parse CLI arguments
 def parse_args():
     parser = argparse.ArgumentParser(description="Random scan of xgf.nu codes.")
-    parser.add_argument('--duration', type=str, help="Run duration, e.g. '1h', '30m'. Overrides TRIES.")
+    parser.add_argument('--duration', type=str, help="Run duration, e.g. '1h', '30m', '30s'. Overrides TRIES.")
     return parser.parse_args()
 
 # Configuration from environment
@@ -69,7 +69,6 @@ async def main(run_duration: timedelta = None):
     except FileNotFoundError:
         pass
 
-    initial_hit_count = len(hits)
     new_hits = 0
     total_scans = 0
 
@@ -97,19 +96,27 @@ if __name__ == '__main__':
     # Determine run duration
     run_duration = None
     if args.duration:
-        unit = args.duration[-1]
-        value = args.duration[:-1]
-        try:
-            num = float(value)
-            if unit == 'h':
-                run_duration = timedelta(hours=num)
-            elif unit == 'm':
-                run_duration = timedelta(minutes=num)
-            else:
-                raise ValueError
-        except ValueError:
-            logger.error("Invalid duration format. Use e.g. '1h' or '30m'.")
-            sys.exit(1)
+        value = args.duration
+        # Numeric only => seconds
+        if value.isdigit():
+            seconds = int(value)
+            run_duration = timedelta(seconds=seconds)
+        else:
+            unit = value[-1]
+            num = value[:-1]
+            try:
+                num_val = float(num)
+                if unit == 'h':
+                    run_duration = timedelta(hours=num_val)
+                elif unit == 'm':
+                    run_duration = timedelta(minutes=num_val)
+                elif unit == 's':
+                    run_duration = timedelta(seconds=num_val)
+                else:
+                    raise ValueError
+            except ValueError:
+                logger.error("Invalid duration format. Use e.g. '1h', '30m', '30s', or numeric seconds.")
+                sys.exit(1)
 
     start = datetime.now()
     logger.info(f"Scan started: {start}")
