@@ -1,0 +1,66 @@
+name: 🚀 Torrent Download and Push All Files to Repo
+
+on:
+  workflow_dispatch:
+    inputs:
+      torrent_url:
+        description: 'ダウンロードする .torrent の URL'
+        required: true
+        default: 'https://nyaa.si/download/655498.torrent'
+
+jobs:
+  download-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: ✅ Checkout Repository
+        uses: actions/checkout@v3
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: ⚙️ Install Dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq aria2
+
+      - name: 📥 Download via aria2c (max speed)
+        run: |
+          mkdir -p content
+          aria2c \
+            --dir=content \
+            --seed-time=0 \
+            --enable-dht=true \
+            --bt-enable-lpd=true \
+            --bt-tracker='udp://tracker.openbittorrent.com:80,udp://tracker.opentrackr.org:1337' \
+            --split=32 \
+            --max-connection-per-server=32 \
+            --max-concurrent-downloads=16 \
+            --min-split-size=1M \
+            --continue=true \
+            --summary-interval=1 \
+            "${{ github.event.inputs.torrent_url }}"
+
+      - name: 🧠 Prepare Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: 📤 Push each folder as a separate branch
+        run: |
+          for dir in content/*; do
+            [ -d "$dir" ] || continue
+            folder_name=$(basename "$dir")
+            branch_name="content-${folder_name}"
+            echo "🌿 Creating branch: $branch_name"
+
+            git checkout -b "$branch_name"
+            mkdir -p "$folder_name"
+            cp -r "$dir"/* "$folder_name"/
+
+            git add "$folder_name"
+            git commit -m "Add $folder_name contents from torrent"
+            git push origin "$branch_name"
+            git checkout main
+            rm -rf "$folder_name"
+          done
