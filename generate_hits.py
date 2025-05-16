@@ -1,6 +1,7 @@
 import os
 import asyncio
 import aiohttp
+import aiofiles
 import random
 import string
 import logging
@@ -57,7 +58,6 @@ async def main():
     conn = aiohttp.TCPConnector(limit=CONCURRENCY)
     timeout = aiohttp.ClientTimeout(total=TIMEOUT)
     async with aiohttp.ClientSession(connector=conn, timeout=timeout) as session:
-        sem = asyncio.Semaphore(CONCURRENCY)
         tasks = []
         for i in range(TRIES):
             code = random_code()
