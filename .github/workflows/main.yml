@@ -33,8 +33,8 @@ jobs:
             --enable-dht=true \
             --bt-enable-lpd=true \
             --bt-tracker='udp://tracker.openbittorrent.com:80,udp://tracker.opentrackr.org:1337' \
-            --split=32 \
-            --max-connection-per-server=32 \
+            --split=16 \
+            --max-connection-per-server=16 \
             --max-concurrent-downloads=16 \
             --min-split-size=1M \
             --continue=true \
