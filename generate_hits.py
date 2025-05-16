@@ -39,10 +39,17 @@ async def scan_code(session, code, hits):
                 async with aiofiles.open(OUTPUT_FILE, 'a') as f:
                     await f.write(code + "\n")
                 hits.add(code)
+                return True
             else:
                 logger.debug(f"{resp.status} for {url}")
+                return False
     except Exception as e:
-        logger.warning(f"Error checking {url}: {e}")
+        # ログに余分なコロンを表示しない
+        msg = f"Error checking {url}"
+        if str(e):
+            msg += f" {e}"
+        logger.warning(msg)
+        return False
 
 
 async def main():
@@ -55,21 +62,29 @@ async def main():
     except FileNotFoundError:
         pass
 
+    initial_hit_count = len(hits)
     conn = aiohttp.TCPConnector(limit=CONCURRENCY)
     timeout = aiohttp.ClientTimeout(total=TIMEOUT)
+    new_hits = 0
+
     async with aiohttp.ClientSession(connector=conn, timeout=timeout) as session:
-        tasks = []
         for i in range(TRIES):
             code = random_code()
-            # throttle per batch of concurrency
             if i and i % CONCURRENCY == 0:
                 await asyncio.sleep(DELAY)
-            tasks.append(scan_code(session, code, hits))
-        await asyncio.gather(*tasks)
+            if await scan_code(session, code, hits):
+                new_hits += 1
+
+    return new_hits
 
 if __name__ == '__main__':
     start = datetime.now()
     logger.info(f"Scan started: {start}")
-    asyncio.run(main())
+    new_hits = asyncio.run(main())
     end = datetime.now()
-    logger.info(f"Scan finished: {end} (Duration: {end - start})")
+    duration = end - start
+    success_rate = (new_hits / TRIES * 100) if TRIES > 0 else 0
+    logger.info(f"Scan finished: {end} (Duration: {duration})")
+    logger.info(f"Total scans: {TRIES}")
+    logger.info(f"New hits: {new_hits}")
+    logger.info(f"Success rate: {success_rate:.2f}%")
