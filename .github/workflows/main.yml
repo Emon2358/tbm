@@ -2,8 +2,13 @@ name: Random Scan and Commit
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '*/30 * * * *'   # 必要なら有効化
+    inputs:
+      duration:
+        description: 'Run duration, e.g. 1h, 30m'
+        required: false
+        default: ''
+#  schedule:
+#    - cron: '*/30 * * * *'   # 必要なら有効化
 
 jobs:
   scan:
@@ -34,7 +39,13 @@ jobs:
           pip install aiohttp aiofiles
 
       - name: Run scan script
-        run: python generate_hits.py
+        run: |
+          if [ -n "${{ github.event.inputs.duration }}" ]; then
+            DURATION_ARG="--duration ${{ github.event.inputs.duration }}"
+          else
+            DURATION_ARG=""
+          fi
+          python generate_hits.py $DURATION_ARG
 
       - name: Commit and push changes
         run: |
