@@ -1,4 +1,4 @@
-name: 🚀 Torrent Download and Push All Files to Repo
+name: 🚀 Reliable Torrent Download and Push All Files to Repo
 
 on:
   workflow_dispatch:
@@ -24,11 +24,17 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq aria2 curl
 
+      - name: 🗑️ Clean up old DHT cache
+        run: |
+          DHT_DIR=/home/runner/.cache/aria2
+          mkdir -p "$DHT_DIR"
+          rm -f "$DHT_DIR/dht.dat"
+
       - name: 🔗 Download .torrent file
         run: |
           curl -sL "${{ github.event.inputs.torrent_url }}" -o download.torrent
 
-      - name: 📥 Download via aria2c (max speed)
+      - name: 📥 Download via aria2c (max speed with fresh DHT)
         run: |
           mkdir -p content
           aria2c \
@@ -36,8 +42,14 @@ jobs:
             --dir=content \
             --seed-time=0 \
             --enable-dht=true \
+            --dht-file-path=/home/runner/.cache/aria2/dht.dat \
             --bt-enable-lpd=true \
-            --bt-tracker="udp://tracker.openbittorrent.com:80,udp://tracker.opentrackr.org:1337,udp://tracker.leechers-paradise.org:6969" \
+            --bt-tracker="\
+udp://tracker.openbittorrent.com:80,\
+udp://tracker.opentrackr.org:1337,\
+udp://tracker.leechers-paradise.org:6969,\
+udp://tracker.coppersurfer.tk:6969,\
+udp://exodus.desync.com:6969" \
             --split=16 \
             --max-connection-per-server=16 \
             --max-concurrent-downloads=16 \
@@ -46,7 +58,26 @@ jobs:
             --timeout=60 \
             --retry-wait=5 \
             --summary-interval=1 \
-            download.torrent
+            download.torrent || \
+          (echo "⚠️ DHT failing, retry without DHT" && \
+           aria2c \
+             --file-allocation=none \
+             --dir=content \
+             --seed-time=0 \
+             --enable-dht=false \
+             --bt-tracker="\
+udp://tracker.openbittorrent.com:80,\
+udp://tracker.opentrackr.org:1337,\
+udp://tracker.leechers-paradise.org:6969" \
+             --split=16 \
+             --max-connection-per-server=16 \
+             --max-concurrent-downloads=16 \
+             --min-split-size=1M \
+             --continue=true \
+             --timeout=60 \
+             --retry-wait=5 \
+             --summary-interval=1 \
+             download.torrent)
 
       - name: 🧠 Prepare Git
         run: |
